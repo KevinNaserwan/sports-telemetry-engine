@@ -2,23 +2,32 @@ using SportsTelemetryEngine.Domain.Entities;
 
 namespace SportsTelemetryEngine.Application.Services;
 
-public record PossessionEstimationResult(
+public record BatchProcessResult(
     string MatchId,
-    long FrameIndex,
-    string? ControllingTeamId,
-    string? ControllingPlayerId,
-    double ConfidenceScore
+    int TotalFramesProcessed,
+    double HomePossessionPercentage,
+    double AwayPossessionPercentage,
+    double ContestedPercentage,
+    int TotalTurnoversCount,
+    List<TurnoverEvent> Turnovers
 );
 
 public interface ITelemetryProcessor
 {
     PossessionEstimationResult EstimateFramePossession(TrackingFrame frame);
-    Task ProcessBatchAsync(IEnumerable<TrackingFrame> frames, CancellationToken cancellationToken = default);
+    BatchProcessResult ProcessBatch(IEnumerable<TrackingFrame> frames);
+    Task<BatchProcessResult> ProcessBatchAsync(IEnumerable<TrackingFrame> frames, CancellationToken cancellationToken = default);
 }
 
 public class TelemetryProcessor : ITelemetryProcessor
 {
     private const double ProximityThresholdMeters = 1.5;
+    private readonly ITurnoverDetector _turnoverDetector;
+
+    public TelemetryProcessor(ITurnoverDetector? turnoverDetector = null)
+    {
+        _turnoverDetector = turnoverDetector ?? new TurnoverDetector();
+    }
 
     public PossessionEstimationResult EstimateFramePossession(TrackingFrame frame)
     {
@@ -53,9 +62,58 @@ public class TelemetryProcessor : ITelemetryProcessor
         );
     }
 
-    public Task ProcessBatchAsync(IEnumerable<TrackingFrame> frames, CancellationToken cancellationToken = default)
+    public BatchProcessResult ProcessBatch(IEnumerable<TrackingFrame> frames)
     {
-        // High-throughput processing pipeline placeholder
-        return Task.CompletedTask;
+        _turnoverDetector.Reset();
+        var frameList = frames.ToList();
+        if (frameList.Count == 0)
+        {
+            return new BatchProcessResult("UNKNOWN", 0, 0.0, 0.0, 0.0, 0, []);
+        }
+
+        var matchId = frameList.First().MatchId;
+        int homeCount = 0;
+        int awayCount = 0;
+        int contestedCount = 0;
+        var turnovers = new List<TurnoverEvent>();
+
+        foreach (var frame in frameList)
+        {
+            var possession = EstimateFramePossession(frame);
+            var turnover = _turnoverDetector.DetectTurnover(frame, possession);
+            if (turnover != null)
+            {
+                turnovers.Add(turnover);
+            }
+
+            if (possession.ControllingTeamId == "Home" || (possession.ControllingTeamId?.StartsWith("H") ?? false))
+            {
+                homeCount++;
+            }
+            else if (possession.ControllingTeamId == "Away" || (possession.ControllingTeamId?.StartsWith("A") ?? false))
+            {
+                awayCount++;
+            }
+            else
+            {
+                contestedCount++;
+            }
+        }
+
+        int total = frameList.Count;
+        return new BatchProcessResult(
+            MatchId: matchId,
+            TotalFramesProcessed: total,
+            HomePossessionPercentage: Math.Round((double)homeCount / total * 100.0, 2),
+            AwayPossessionPercentage: Math.Round((double)awayCount / total * 100.0, 2),
+            ContestedPercentage: Math.Round((double)contestedCount / total * 100.0, 2),
+            TotalTurnoversCount: turnovers.Count,
+            Turnovers: turnovers
+        );
+    }
+
+    public Task<BatchProcessResult> ProcessBatchAsync(IEnumerable<TrackingFrame> frames, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(ProcessBatch(frames));
     }
 }
