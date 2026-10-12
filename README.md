@@ -27,13 +27,37 @@
 
 ## 🏛️ Clean Architecture & CQRS Workflow
 
-```mermaid
-flowchart LR
-    Client[Telemetry Producers / Cameras] -->|HTTP / gRPC| Presentation[WebApi Layer]
-    Presentation -->|MediatR Command| Application[Application Layer]
-    Application -->|Domain Logic| Domain[Domain Entities & Aggregates]
-    Application -->|Repository Interfaces| Infrastructure[Infrastructure Layer]
-    Infrastructure -->|Cache & Store| DB[(PostgreSQL / Redis)]
+```
++---------------------------------------------------------------------------------+
+|                       CLEAN ARCHITECTURE & CQRS WORKFLOW                        |
++---------------------------------------------------------------------------------+
+
+ [ Telemetry Producers / IoT Cameras ]
+                 |
+                 | HTTP / gRPC Ingestion
+                 v
+ +-----------------------------------+
+ |     PRESENTATION (WebApi Layer)   |  ---> Controllers, Rate Limiting, Middleware
+ +-----------------+-----------------+
+                   |
+                   | MediatR Commands / Queries
+                   v
+ +-----------------------------------+
+ |     APPLICATION CORE LAYER        |  ---> CQRS Handlers, Behaviors, DTOs, Pipeline
+ +-----------------+-----------------+
+                   |
+         +---------+---------+
+         |                   |
+         v                   v
+ +---------------+   +-----------------------+
+ | DOMAIN LAYER  |   | INFRASTRUCTURE LAYER  |
+ | Entities      |   | EF Core 8 / Npgsql    |
+ | Aggregates    |   | Redis TimeSeries Sink |
+ | Value Objects |   | RabbitMQ Publisher    |
+ +---------------+   +-----------+-----------+
+                                 |
+                                 v
+                     [ PostgreSQL & Redis Cluster ]
 ```
 
 ---
