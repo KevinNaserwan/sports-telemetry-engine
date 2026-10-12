@@ -5,6 +5,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSingleton<ITelemetryProcessor, TelemetryProcessor>();
+builder.Services.AddSingleton<ITurnoverDetector, TurnoverDetector>();
 
 var app = builder.Build();
 
@@ -16,10 +17,16 @@ app.MapGet("/", () => Results.Ok(new
     Timestamp = DateTimeOffset.UtcNow
 }));
 
-app.MapPost("/api/v1/telemetry/frame", (TrackingFrame frame, ITelemetryProcessor processor) =>
+app.MapPost("/api/v1/telemetry/frame", (TrackingFrame frame, ITelemetryProcessor processor, ITurnoverDetector turnoverDetector) =>
 {
-    var result = processor.EstimateFramePossession(frame);
-    return Results.Ok(result);
+    var possession = processor.EstimateFramePossession(frame);
+    var turnover = turnoverDetector.DetectTurnover(frame, possession);
+    
+    return Results.Ok(new
+    {
+        Possession = possession,
+        Turnover = turnover
+    });
 });
 
 app.Run();
