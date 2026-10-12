@@ -2,6 +2,14 @@ using SportsTelemetryEngine.Domain.Entities;
 
 namespace SportsTelemetryEngine.Application.Services;
 
+public record PossessionEstimationResult(
+    string MatchId,
+    long FrameIndex,
+    string? ControllingTeamId,
+    string? ControllingPlayerId,
+    double ConfidenceScore
+);
+
 public record BatchProcessResult(
     string MatchId,
     int TotalFramesProcessed,
