@@ -29,4 +29,10 @@ app.MapPost("/api/v1/telemetry/frame", (TrackingFrame frame, ITelemetryProcessor
     });
 });
 
+app.MapPost("/api/v1/telemetry/batch", async (List<TrackingFrame> frames, ITelemetryProcessor processor) =>
+{
+    var result = await processor.ProcessBatchAsync(frames);
+    return Results.Ok(result);
+});
+
 app.Run();
